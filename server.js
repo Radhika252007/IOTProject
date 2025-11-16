@@ -202,12 +202,10 @@ app.post("/esp-data", (req, res) => {
   mqttClient.publish("umbrella/gps", `${lat},${lon}`);
   res.json({ message: "Forwarded to MQTT" });
 });
-
-/* --------------------------- SERVE FRONTEND ------------------------------ */
-// Serve login.html for any route that doesn't match an API
-app.get("*", (req, res) => {
+app.get(/.*/, (req, res) => {
   res.sendFile(path.join(__dirname, "public", "login.html"));
 });
+
 
 /* --------------------------- START SERVER -------------------------------- */
 const PORT = process.env.PORT || 3000;
