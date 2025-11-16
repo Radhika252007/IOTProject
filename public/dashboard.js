@@ -34,7 +34,7 @@ function updateEmergencyEmail() {
   document.getElementById("emergencyEmailDisplay").textContent = newEmail;
   document.getElementById("emergencyEmail").textContent = newEmail || "Not set";
 
-  fetch("http://localhost:5000/update-emergency", {
+  fetch("https://smart-umbrella.onrender.com/update-emergency", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email: userEmail, emergencyEmail: newEmail }),

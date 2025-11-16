@@ -1,4 +1,4 @@
-const BASE_URL = "http://localhost:5000";
+const BASE_URL = "https://smart-umbrella.onrender.com";
 
 document.addEventListener("DOMContentLoaded", () => {
   if (localStorage.getItem("userEmail")) {
