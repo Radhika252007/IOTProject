@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Umbrella - Login/Register</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h2>🌂 Smart Umbrella Login / Register</h2>
+
+    <input type="email" id="email" placeholder="Email" required />
+    <!-- <input type="email" id="emergency" placeholder="Emergency Email (optional)" /> -->
+    <input type="password" id="password" placeholder="Password" required />
+    <input type="text" id="otp" placeholder="Enter OTP (for register)" />
+
+    <div class="buttons">
+      <button onclick="sendOTP()">Send OTP</button>
+      <button onclick="register()">Register</button>
+      <button onclick="login()">Login</button>
+    </div>
+  </div>
+
+  <script src="auth.js"></script>
+</body>
+</html>

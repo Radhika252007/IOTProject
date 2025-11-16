@@ -1,5 +1,5 @@
 import express from "express";
-import mysql from "mysql2";
+import mongoose from "mongoose";
 import dotenv from "dotenv";
 import bodyParser from "body-parser";
 import cors from "cors";
@@ -14,25 +14,30 @@ app.use(cors());
 app.use(bodyParser.json());
 
 /* ----------------------------- STATIC FILES ----------------------------- */
-// This allows Render to serve your frontend inside /public
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 app.use(express.static(path.join(__dirname, "public")));
 
-/* ----------------------------- MYSQL SETUP ----------------------------- */
-const db = mysql.createConnection({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME,
-  port: process.env.DB_PORT || 3306,
-  ssl: { rejectUnauthorized: false } // Important for Render + cloud DBs
+/* ----------------------------- MONGOOSE SETUP ----------------------------- */
+
+mongoose
+  .connect(process.env.MONGO_URI, {
+    dbName: "smartumbrella",
+  })
+  .then(() => console.log("✅ Connected to MongoDB (Mongoose)"))
+  .catch(err => console.error("❌ MongoDB Error:", err));
+
+/* ----------------------------- USER MODEL ----------------------------- */
+
+const userSchema = new mongoose.Schema({
+  email: { type: String, required: true, unique: true },
+  password: String,
+  emergencyEmail: String,
+  otp: String,
+  otpExpires: Date
 });
 
-db.connect(err => {
-  if (err) console.error("DB Error:", err);
-  else console.log("✅ Connected to MySQL");
-});
+const User = mongoose.model("User", userSchema);
 
 /* ----------------------------- EMAIL SETUP ------------------------------ */
 const transporter = nodemailer.createTransport({
@@ -44,17 +49,12 @@ const transporter = nodemailer.createTransport({
 });
 
 /* ----------------------------- MQTT SETUP ------------------------------- */
-// Render allows outbound but blocks inbound ports.
-// So MQTT MUST use WebSocket for frontend & TCP for backend.
 
 const MQTT_URL = process.env.MQTT_BROKER_URL || "mqtt://broker.hivemq.com:1883";
-
 const mqttClient = mqtt.connect(MQTT_URL);
 
 mqttClient.on("connect", () => {
   console.log("📡 Connected to MQTT broker");
-
-  // Subscribe to device topics
   mqttClient.subscribe("umbrella/gps");
   mqttClient.subscribe("umbrella/status");
   mqttClient.subscribe("umbrella/sos");
@@ -62,66 +62,61 @@ mqttClient.on("connect", () => {
 });
 
 /* --------------------------- MQTT MESSAGE LOGIC -------------------------- */
-mqttClient.on("message", (topic, message) => {
+
+mqttClient.on("message", async (topic, message) => {
   const msg = message.toString();
   console.log(`📥 MQTT [${topic}]: ${msg}`);
 
-  /* ---------------- SOS ALERT ---------------- */
+  /* ---------------------- SOS ---------------------- */
   if (topic === "umbrella/sos") {
     try {
-      const data = JSON.parse(msg);
-      const { email, lat, lon } = data;
+      const { email, lat, lon } = JSON.parse(msg);
 
-      db.query("SELECT emergencyEmail FROM users WHERE email=?", [email], (err, rows) => {
-        if (err) return console.error("DB SOS Error:", err);
-        if (!rows.length) return console.log("❌ No user found:", email);
+      const user = await User.findOne({ email });
+      if (!user) return console.log("❌ No user found:", email);
 
-        const emergencyEmail = rows[0].emergencyEmail;
-        if (emergencyEmail) {
-          transporter.sendMail({
-            from: process.env.EMAIL_USER,
-            to: emergencyEmail,
-            subject: "🚨 Smart Umbrella SOS",
-            text: `SOS triggered by ${email}.\nLocation: https://maps.google.com/?q=${lat},${lon}`
-          });
-          console.log(`🚨 SOS sent to ${emergencyEmail}`);
-        }
+      const recipient = user.emergencyEmail;
+      if (!recipient) return;
+
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: recipient,
+        subject: "🚨 Smart Umbrella SOS",
+        text: `SOS triggered by ${email}.\nLocation: https://maps.google.com/?q=${lat},${lon}`
       });
+
+      console.log(`🚨 SOS sent to ${recipient}`);
+
     } catch (err) {
       console.error("Invalid SOS JSON:", msg);
     }
   }
 
-  /* ---------------- WEATHER ALERT ---------------- */
+  /* -------------------- WEATHER ALERT -------------------- */
   if (topic === "umbrella/weather") {
     try {
-      const data = JSON.parse(msg);
-      const { lat, lon, rain_prob, uv_index, email } = data;
+      const { lat, lon, rain_prob, uv_index, email } = JSON.parse(msg);
 
-      if (!email) return;
+      const user = await User.findOne({ email });
+      if (!user) return;
 
-      db.query("SELECT emergencyEmail FROM users WHERE email=?", [email], (err, rows) => {
-        if (err) return console.error("Weather DB Error:", err);
-        if (!rows.length) return;
+      const recipient = user.emergencyEmail || user.email;
 
-        const emergencyEmail = rows[0].emergencyEmail;
-        const recipient = emergencyEmail || email;
+      let alerts = [];
+      if (rain_prob > 50) alerts.push(`🌧 High rain probability: ${rain_prob}%`);
+      if (uv_index > 7) alerts.push(`☀️ High UV index: ${uv_index}`);
 
-        let alerts = [];
-        if (rain_prob > 50) alerts.push(`🌧 High rain probability: ${rain_prob}%`);
-        if (uv_index > 7) alerts.push(`☀️ High UV index: ${uv_index}`);
+      if (alerts.length === 0) return;
 
-        if (alerts.length === 0) return;
-
-        transporter.sendMail({
-          from: process.env.EMAIL_USER,
-          to: recipient,
-          subject: "⚠️ Smart Umbrella Weather Alert",
-          text: `${alerts.join("\n")}\nLocation: https://maps.google.com/?q=${lat},${lon}`
-        });
-
-        console.log(`📧 Weather alert sent to ${recipient}`);
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: recipient,
+        subject: "⚠️ Smart Umbrella Weather Alert",
+        text: `${alerts.join("\n")}\nLocation: https://maps.google.com/?q=${lat},${lon}`
       });
+
+      console.log(`📧 Weather alert sent to ${recipient}`);
+
     } catch (err) {
       console.error("Invalid weather JSON:", msg);
     }
@@ -130,86 +125,79 @@ mqttClient.on("message", (topic, message) => {
 
 /* ----------------------------- API ROUTES -------------------------------- */
 
-// OTP send
-app.post("/send-otp", (req, res) => {
+/* ---------------- SEND OTP ---------------- */
+app.post("/send-otp", async (req, res) => {
   const { email } = req.body;
+
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   const otpExpires = new Date(Date.now() + 5 * 60000);
 
-  db.query("SELECT email, password FROM users WHERE email=?", [email], (err, result) => {
-    if (err) return res.status(500).json({ error: err });
+  let user = await User.findOne({ email });
 
-    const query = result.length
-      ? "UPDATE users SET otp=?, otpExpires=? WHERE email=?"
-      : "INSERT INTO users (email, otp, otpExpires) VALUES (?, ?, ?)";
+  if (user) {
+    user.otp = otp;
+    user.otpExpires = otpExpires;
+    await user.save();
+  } else {
+    user = await User.create({ email, otp, otpExpires });
+  }
 
-    const params = result.length
-      ? [otp, otpExpires, email]
-      : [email, otp, otpExpires];
-
-    db.query(query, params, err2 => {
-      if (err2) return res.status(500).json({ error: err2 });
-
-      transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: email,
-        subject: "Your Smart Umbrella OTP",
-        text: `Your OTP: ${otp} (valid for 5 min)`
-      });
-
-      res.json({ message: "OTP sent successfully" });
-    });
+  await transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: "Your Smart Umbrella OTP",
+    text: `Your OTP: ${otp} (valid for 5 minutes)`
   });
+
+  res.json({ message: "OTP sent successfully" });
 });
 
-// Registration
-app.post("/register", (req, res) => {
+/* ---------------- REGISTER ---------------- */
+app.post("/register", async (req, res) => {
   const { email, password, emergencyEmail, otp } = req.body;
 
-  db.query("SELECT otp, otpExpires FROM users WHERE email=?", [email], (err, rows) => {
-    if (err) return res.status(500).json({ error: err });
-    if (!rows.length) return res.status(400).json({ message: "No OTP found" });
+  const user = await User.findOne({ email });
+  if (!user) return res.status(400).json({ message: "No OTP found" });
 
-    const dbOTP = rows[0].otp;
-    if (otp !== dbOTP || Date.now() > new Date(rows[0].otpExpires))
-      return res.status(400).json({ message: "Invalid or expired OTP" });
+  if (otp !== user.otp || Date.now() > new Date(user.otpExpires)) {
+    return res.status(400).json({ message: "Invalid or expired OTP" });
+  }
 
-    db.query("UPDATE users SET password=?, emergencyEmail=? WHERE email=?", [password, emergencyEmail, email], err2 => {
-      if (err2) return res.status(500).json({ error: err2 });
-      res.json({ message: "Registered successfully" });
-    });
-  });
+  user.password = password;
+  user.emergencyEmail = emergencyEmail;
+  await user.save();
+
+  res.json({ message: "Registered successfully" });
 });
 
-// Login
-app.post("/login", (req, res) => {
+/* ---------------- LOGIN ---------------- */
+app.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
-  db.query("SELECT * FROM users WHERE email=? AND password=?", [email, password], (err, rows) => {
-    if (err) return res.status(500).json({ error: err });
-    if (!rows.length) return res.status(401).json({ message: "Invalid credentials" });
-    res.json(rows[0]);
-  });
+  const user = await User.findOne({ email, password });
+  if (!user) return res.status(401).json({ message: "Invalid credentials" });
+
+  res.json(user);
 });
 
-// Update emergency contact
-app.post("/update-emergency", (req, res) => {
+/* ---------------- UPDATE EMERGENCY CONTACT ---------------- */
+app.post("/update-emergency", async (req, res) => {
   const { email, emergencyEmail } = req.body;
 
-  db.query(
-    "UPDATE users SET emergencyEmail=? WHERE email=?",
-    [emergencyEmail, email],
-    (err, result) => {
-      if (err) return res.status(500).json({ error: err });
-      if (result.affectedRows === 0) return res.status(404).json({ message: "User not found" });
-      res.json({ message: "Updated" });
-    }
+  const user = await User.findOneAndUpdate(
+    { email },
+    { emergencyEmail },
+    { new: true }
   );
+
+  if (!user) return res.status(404).json({ message: "User not found" });
+
+  res.json({ message: "Updated" });
 });
 
-// ESP POST → MQTT forward
+/* ---------------- ESP → MQTT ---------------- */
 app.post("/esp-data", (req, res) => {
-  const { email, lat, lon, status } = req.body;
+  const { email, lat, lon } = req.body;
 
   mqttClient.publish("umbrella/gps", `${lat},${lon}`);
   res.json({ message: "Forwarded to MQTT" });
@@ -217,4 +205,4 @@ app.post("/esp-data", (req, res) => {
 
 /* --------------------------- START SERVER -------------------------------- */
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server running on ${PORT}`));

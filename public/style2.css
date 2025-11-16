@@ -1,0 +1,213 @@
+/* Smart Umbrella Dashboard */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Poppins", sans-serif;
+}
+
+body {
+  background: linear-gradient(135deg, #141e30, #243b55);
+  color: #fff;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Navbar */
+.navbar {
+  width: 100%;
+  padding: 15px 40px;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 3px 15px rgba(0, 0, 0, 0.3);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.navbar h2 {
+  color: #00bcd4;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.navbar button {
+  background: #00bcd4;
+  color: #fff;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.navbar button:hover {
+  background: #0097a7;
+  transform: scale(1.05);
+}
+
+/* Dashboard layout */
+.dashboard-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 30px;
+}
+
+/* Card layout grid */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2,1fr);
+  gap: 25px;
+  width: 90%;
+  max-width: 1100px;
+  margin: 20px auto;
+}
+
+/* Card styling */
+.card {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  border-radius: 20px;
+  padding: 25px;
+  box-shadow: 0 4px 25px rgba(0, 0, 0, 0.3);
+  transition: 0.3s;
+  position: relative;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.4);
+}
+
+.card h3 {
+  font-size: 20px;
+  color: #00e5ff;
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.card p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* Map styling */
+#map {
+  height: 350px;
+  width: 100%;
+  border-radius: 15px;
+  margin-top: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Alert box highlight */
+.alert-card {
+  background: rgba(255, 255, 255, 0.1);
+  transition: background 0.5s;
+}
+
+.alert-card #status {
+  font-size: 16px;
+  color: #ffeb3b;
+  font-weight: 500;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .navbar {
+    flex-direction: column;
+    gap: 10px;
+    padding: 20px;
+  }
+
+  .cards {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  #map {
+    height: 300px;
+  }
+}
+
+/* Smooth fade-in animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card {
+  animation: fadeIn 0.6s ease;
+}
+
+#emergencySection {
+  margin-top: 20px;
+  background: #e0f2fe;
+  padding: 15px;
+  border-radius: 10px;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+#emergencySection h3 {
+  color: #061642;
+  margin-bottom: 10px;
+  font-size: 1.2rem;
+}
+
+#emergencySection p {
+  color: #1e293b;
+  margin-bottom: 10px;
+  font-size: 0.8rem;
+}
+
+#emergencyEmailInput {
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  width: 70%;
+  max-width: 300px;
+  outline: none;
+  transition: all 0.2s ease-in-out;
+}
+
+#emergencyEmailInput:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+#emergencySection button {
+  margin-left: 10px;
+  margin-top: 20px;
+  padding: 8px 12px;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease-in-out;
+}
+
+#emergencySection button:hover {
+  background: #1d4ed8;
+  transform: scale(1.05);
+}
